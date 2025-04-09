@@ -1,4 +1,25 @@
 import { Check } from "lucide-react"
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table"
+import { ScrollArea } from "@/components/ui/scroll-area"
+
+interface ProcessedDataRow {
+  vehicleId: string
+  vehicleName: string
+  lat: number
+  lon: number
+  dateTime: string
+  routeUrl: string
+  vehicleCharging: boolean
+  speedKmh: number
+  batteryLevel: number | null
+}
 
 interface CompletionStepProps {
   formData: {
@@ -8,6 +29,7 @@ interface CompletionStepProps {
     preferredManufacturers: string[]
     energyCost: string
     department: string
+    csvData?: ProcessedDataRow[]
   }
 }
 
@@ -118,6 +140,51 @@ export default function CompletionStep({ formData }: CompletionStepProps) {
             <p className="text-red-600">{formData.department || "Not provided"}</p>
           </div>
         </div>
+
+        {formData.csvData && formData.csvData.length > 0 && (
+          <div className="mt-8">
+            <h4 className="font-medium text-red-700 mb-4">Uploaded Vehicle Data</h4>
+            <div className="rounded-md border">
+              <ScrollArea className="h-[400px]">
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead className="sticky top-0 bg-white z-10 w-[100px]">Vehicle ID</TableHead>
+                      <TableHead className="sticky top-0 bg-white z-10 w-[150px]">Vehicle Name</TableHead>
+                      <TableHead className="sticky top-0 bg-white z-10 w-[100px]">Latitude</TableHead>
+                      <TableHead className="sticky top-0 bg-white z-10 w-[100px]">Longitude</TableHead>
+                      <TableHead className="sticky top-0 bg-white z-10 w-[180px]">Date/Time</TableHead>
+                      <TableHead className="sticky top-0 bg-white z-10 min-w-[200px]">Route URL</TableHead>
+                      <TableHead className="sticky top-0 bg-white z-10 w-[100px]">Charging</TableHead>
+                      <TableHead className="sticky top-0 bg-white z-10 w-[100px]">Speed (km/h)</TableHead>
+                      <TableHead className="sticky top-0 bg-white z-10 w-[100px]">Battery Level</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {formData.csvData.map((row, index) => (
+                      <TableRow key={index}>
+                        <TableCell className="font-medium">{row.vehicleId}</TableCell>
+                        <TableCell>{row.vehicleName}</TableCell>
+                        <TableCell>{row.lat.toFixed(4)}</TableCell>
+                        <TableCell>{row.lon.toFixed(4)}</TableCell>
+                        <TableCell>{new Date(row.dateTime).toLocaleString()}</TableCell>
+                        <TableCell className="truncate max-w-[200px]">
+                          <span title={row.routeUrl}>{row.routeUrl}</span>
+                        </TableCell>
+                        <TableCell>{row.vehicleCharging ? 'Yes' : 'No'}</TableCell>
+                        <TableCell>{row.speedKmh}</TableCell>
+                        <TableCell>{row.batteryLevel !== null ? `${row.batteryLevel}%` : '-'}</TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </ScrollArea>
+            </div>
+            <p className="text-sm text-muted-foreground mt-2">
+              Total rows: {formData.csvData.length}
+            </p>
+          </div>
+        )}
       </div>
 
       <p className="text-center text-red-600 mt-6">Our team will review your information and contact you shortly.</p>

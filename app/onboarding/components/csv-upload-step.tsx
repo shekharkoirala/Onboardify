@@ -9,9 +9,20 @@ import {
   DialogContent,
   DialogHeader,
   DialogTitle,
+  DialogFooter,
 } from "@/components/ui/dialog"
 import { Button } from "@/components/ui/button"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table"
+import { ScrollArea } from "@/components/ui/scroll-area"
+import { Check } from "lucide-react"
 
 interface CSVRow {
   [key: string]: string;
@@ -31,7 +42,21 @@ interface SchemaMapping {
   lon: string
   dateTime: string
   routeUrl: string
-  vehicleCharging?: string
+  vehicleCharging: string
+  speedKmh: string
+  batteryLevel: string
+}
+
+interface ProcessedDataRow {
+  vehicleId: string
+  vehicleName: string
+  lat: number
+  lon: number
+  dateTime: string
+  routeUrl: string
+  vehicleCharging: boolean
+  speedKmh: number
+  batteryLevel: number | null
 }
 
 export default function CSVUploadStep({
@@ -41,7 +66,9 @@ export default function CSVUploadStep({
   showError,
 }: CSVUploadStepProps) {
   const [csvHeaders, setCsvHeaders] = useState<string[]>([])
-  const [csvData, setCsvData] = useState<any[]>([])
+  const [csvData, setCsvData] = useState<CSVRow[]>([])
+  const [processedData, setProcessedData] = useState<ProcessedDataRow[]>([])
+  const [validationErrors, setValidationErrors] = useState<string[]>([])
   const [schemaMapping, setSchemaMapping] = useState<SchemaMapping>({
     vehicleId: '',
     vehicleName: '',
@@ -49,9 +76,12 @@ export default function CSVUploadStep({
     lon: '',
     dateTime: '',
     routeUrl: '',
-    vehicleCharging: ''
+    vehicleCharging: '',
+    speedKmh: '',
+    batteryLevel: ''
   })
   const [showMapping, setShowMapping] = useState(false)
+  const [showPreview, setShowPreview] = useState(false)
 
   const onDrop = useCallback((acceptedFiles: File[]) => {
     const file = acceptedFiles[0]
@@ -59,27 +89,29 @@ export default function CSVUploadStep({
       header: true,
       complete: (results) => {
         if (results.data.length === 0 || !results.data[0]) {
+          console.log('No data found in CSV')
           setShowMapping(true)
           return
         }
 
         const headers = Object.keys(results.data[0] as CSVRow)
+        console.log('Detected CSV headers:', headers)
         setCsvHeaders(headers)
         setCsvData(results.data)
 
         // Try automatic mapping
         const mapping = autoMapColumns(headers)
+        console.log('CSV Headers:', headers)
+        console.log('Initial schema mapping:', mapping)
         console.log('Automatic mapping result:', mapping)
         
-        // Show mapping dialog if any required field is missing
-        if (!isValidMapping(mapping)) {
-          console.log('Invalid mapping - missing required fields')
-          setSchemaMapping(mapping) // Keep partial mapping
-          setShowMapping(true)
-        } else {
-          console.log('Valid mapping found')
-          setSchemaMapping(mapping)
-          processData(results.data, mapping)
+        setSchemaMapping(mapping)
+        setShowMapping(true)
+
+        // If mapping is valid, process data for preview
+        if (isValidMapping(mapping)) {
+          const processed = processDataInternal(results.data, mapping)
+          setProcessedData(processed)
         }
       },
       error: (error) => {
@@ -90,6 +122,56 @@ export default function CSVUploadStep({
   }, [])
 
   const { getRootProps, getInputProps, isDragActive } = useDropzone({ onDrop })
+
+  const validateData = (data: ProcessedDataRow[]): string[] => {
+    const errors: string[] = []
+    
+    data.forEach((row, index) => {
+      // Validate Vehicle ID
+      if (!row.vehicleId) {
+        errors.push(`Row ${index + 1}: Vehicle ID is required`)
+      }
+
+      // Validate Vehicle Name
+      if (!row.vehicleName) {
+        errors.push(`Row ${index + 1}: Vehicle Name is required`)
+      }
+
+      // Validate Latitude
+      if (isNaN(row.lat) || row.lat < -90 || row.lat > 90) {
+        errors.push(`Row ${index + 1}: Invalid latitude value`)
+      }
+
+      // Validate Longitude
+      if (isNaN(row.lon) || row.lon < -180 || row.lon > 180) {
+        errors.push(`Row ${index + 1}: Invalid longitude value`)
+      }
+
+      // Validate DateTime
+      if (!isValid(new Date(row.dateTime))) {
+        errors.push(`Row ${index + 1}: Invalid date/time format`)
+      }
+
+      // Validate Route URL
+      if (!row.routeUrl) {
+        errors.push(`Row ${index + 1}: Route URL is required`)
+      } else if (!row.routeUrl.startsWith('http')) {
+        errors.push(`Row ${index + 1}: Invalid route URL format`)
+      }
+
+      // Validate Speed
+      if (isNaN(row.speedKmh) || row.speedKmh < 0) {
+        errors.push(`Row ${index + 1}: Invalid speed value`)
+      }
+
+      // Validate Battery Level (optional)
+      if (row.batteryLevel !== null && (isNaN(row.batteryLevel) || row.batteryLevel < 0 || row.batteryLevel > 100)) {
+        errors.push(`Row ${index + 1}: Invalid battery level (should be between 0 and 100)`)
+      }
+    })
+
+    return errors
+  }
 
   const autoMapColumns = (headers: string[]) => {
     const mapping: Partial<SchemaMapping> = {}
@@ -105,24 +187,32 @@ export default function CSVUploadStep({
         mapping.vehicleName = header
       }
       // Latitude mapping
-      else if (lowerHeader.includes('lat') || lowerHeader === 'latitude') {
+      else if (lowerHeader === 'lat' || lowerHeader === 'latitude') {
         mapping.lat = header
       }
       // Longitude mapping
-      else if (lowerHeader.includes('lon') || lowerHeader === 'longitude') {
+      else if (lowerHeader === 'lon' || lowerHeader === 'longitude') {
         mapping.lon = header
       }
       // DateTime mapping
-      else if (lowerHeader.includes('date') || lowerHeader.includes('time') || lowerHeader.includes('timestamp')) {
+      else if (lowerHeader.includes('date') || lowerHeader.includes('time')) {
         mapping.dateTime = header
       }
       // Route URL mapping
-      else if (lowerHeader.includes('route') || lowerHeader.includes('url')) {
+      else if (lowerHeader.includes('route') && lowerHeader.includes('url')) {
         mapping.routeUrl = header
       }
-      // Optional: Vehicle Charging mapping
+      // Vehicle Charging mapping
       else if (lowerHeader.includes('charging')) {
         mapping.vehicleCharging = header
+      }
+      // Speed mapping
+      else if (lowerHeader.includes('speed')) {
+        mapping.speedKmh = header
+      }
+      // Battery Level mapping
+      else if (lowerHeader.includes('battery') && lowerHeader.includes('level')) {
+        mapping.batteryLevel = header
       }
     })
     return mapping as SchemaMapping
@@ -155,33 +245,60 @@ export default function CSVUploadStep({
     return null
   }
 
-  const processData = (data: CSVRow[], mapping: SchemaMapping) => {
-    const processedData = data.map(row => ({
-      vehicleId: row[mapping.vehicleId],
-      vehicleName: row[mapping.vehicleName],
-      lat: parseFloat(row[mapping.lat]),
-      lon: parseFloat(row[mapping.lon]),
-      dateTime: row[mapping.dateTime],
-      routeUrl: row[mapping.routeUrl],
-      vehicleCharging: mapping.vehicleCharging ? row[mapping.vehicleCharging]?.toLowerCase() === 'true' : false
-    }))
+  const processDataInternal = (data: CSVRow[], mapping: SchemaMapping): ProcessedDataRow[] => {
+    const processed = data.map(row => {
+      const batteryLevel = row[mapping.batteryLevel] ? parseFloat(row[mapping.batteryLevel]) : null
 
-    updateFormData({ csvData: processedData, schemaMapping: mapping })
-    onValidationChange(true)
+      return {
+        vehicleId: row[mapping.vehicleId],
+        vehicleName: row[mapping.vehicleName],
+        lat: parseFloat(row[mapping.lat]),
+        lon: parseFloat(row[mapping.lon]),
+        dateTime: row[mapping.dateTime],
+        routeUrl: row[mapping.routeUrl],
+        vehicleCharging: row[mapping.vehicleCharging]?.toLowerCase() === 'yes' || 
+                        row[mapping.vehicleCharging]?.toLowerCase() === 'true' || 
+                        (batteryLevel !== null && batteryLevel > 0),
+        speedKmh: parseFloat(row[mapping.speedKmh]) || 0,
+        batteryLevel: batteryLevel
+      }
+    })
+
+    const errors = validateData(processed)
+    setValidationErrors(errors)
+    return processed
   }
 
   const handleMappingChange = (field: keyof SchemaMapping, value: string) => {
-    setSchemaMapping(prev => ({
-      ...prev,
-      [field]: value
-    }))
+    console.log('Mapping change:', field, value)
+    setSchemaMapping(prev => {
+      const newMapping = {
+        ...prev,
+        [field]: value
+      }
+      console.log('New schema mapping:', newMapping)
+
+      // Update preview if mapping is valid
+      if (isValidMapping(newMapping)) {
+        const processed = processDataInternal(csvData, newMapping)
+        setProcessedData(processed)
+      }
+
+      return newMapping
+    })
   }
 
   const handleMappingComplete = () => {
     if (isValidMapping(schemaMapping)) {
-      processData(csvData, schemaMapping)
-      setShowMapping(false)
+      setShowPreview(true)
     }
+  }
+
+  const handleConfirm = () => {
+    updateFormData({ csvData: processedData, schemaMapping })
+    onValidationChange(true)
+    setShowMapping(false)
+    setShowPreview(false)
   }
 
   return (
@@ -196,53 +313,97 @@ export default function CSVUploadStep({
         {isDragActive ? (
           <p>Drop the CSV file here...</p>
         ) : (
-          <p>Drag and drop a CSV file here, or click to select one</p>
+          <div>
+            {formData.csvData ? (
+              <div className="flex flex-col items-center gap-2">
+                <div className="flex items-center gap-2 text-green-600">
+                  <Check className="h-5 w-5" />
+                  <p>CSV file uploaded successfully</p>
+                </div>
+                <p className="text-sm text-muted-foreground">
+                  {formData.csvData.length} rows processed
+                </p>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    updateFormData({ csvData: null });
+                    onValidationChange(false);
+                  }}
+                >
+                  Upload a different file
+                </Button>
+              </div>
+            ) : (
+              <p>Drag and drop a CSV file here, or click to select one</p>
+            )}
+          </div>
         )}
       </div>
 
       <Dialog open={showMapping} onOpenChange={setShowMapping}>
-        <DialogContent className="max-w-2xl">
-          <DialogHeader>
+        <DialogContent className="max-w-5xl max-h-[90vh] flex flex-col gap-0 p-0">
+          <DialogHeader className="px-6 pt-6">
             <DialogTitle>Map CSV Columns</DialogTitle>
-          </DialogHeader>
-          <div className="space-y-4">
             <p className="text-sm text-muted-foreground">
-              Please map your CSV columns to the required fields. All fields except Vehicle Charging are required.
+              Please map your CSV columns to the required fields.
             </p>
-            {Object.entries(schemaMapping).map(([field, value]) => {
-              const isRequired = field !== 'vehicleCharging'
-              const isMapped = !!value
-              return (
-                <div key={field} className="flex items-center justify-between gap-4">
-                  <div className="flex items-center gap-2">
-                    <label className="text-sm font-medium">
-                      {field.replace(/([A-Z])/g, ' $1').trim()}
-                      {isRequired && <span className="text-red-500">*</span>}:
-                    </label>
-                    {!isMapped && isRequired && (
-                      <span className="text-xs text-red-500">Required</span>
-                    )}
-                  </div>
-                  <Select
-                    value={value || undefined}
-                    onValueChange={(newValue) => handleMappingChange(field as keyof SchemaMapping, newValue)}
-                  >
-                    <SelectTrigger className={`w-[200px] ${!isMapped && isRequired ? 'border-red-500' : ''}`}>
-                      <SelectValue placeholder="Select column" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {csvHeaders.map((header) => (
-                        <SelectItem key={header} value={header}>
-                          {header}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
+          </DialogHeader>
+
+          <div className="flex-1 overflow-y-auto px-6">
+            <div className="space-y-6">
+              {/* Mapping Form */}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                {Object.entries(schemaMapping).map(([field, value]) => {
+                  const isRequired = !['vehicleCharging', 'batteryLevel'].includes(field)
+                  const isMapped = !!value
+                  return (
+                    <div key={field} className="flex flex-col gap-2">
+                      <div className="flex items-center gap-2">
+                        <label className="text-sm font-medium flex-shrink-0">
+                          {field.replace(/([A-Z])/g, ' $1').trim()}
+                          {isRequired && <span className="text-red-500">*</span>}:
+                        </label>
+                        {!isMapped && isRequired && (
+                          <span className="text-xs text-red-500">Required</span>
+                        )}
+                      </div>
+                      <Select
+                        value={value || undefined}
+                        onValueChange={(newValue) => handleMappingChange(field as keyof SchemaMapping, newValue)}
+                      >
+                        <SelectTrigger className={`w-full ${!isMapped && isRequired ? 'border-red-500' : ''}`}>
+                          <SelectValue placeholder="Select column" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {csvHeaders.map((header) => (
+                            <SelectItem key={header} value={header}>
+                              {header}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  )
+                })}
+              </div>
+
+              {/* Validation Errors */}
+              {validationErrors.length > 0 && (
+                <div className="p-4 border border-red-200 rounded-md bg-red-50">
+                  <h4 className="text-sm font-semibold text-red-900 mb-2">Validation Errors:</h4>
+                  <ul className="text-sm text-red-700 list-disc list-inside">
+                    {validationErrors.map((error, index) => (
+                      <li key={index}>{error}</li>
+                    ))}
+                  </ul>
                 </div>
-              )
-            })}
+              )}
+            </div>
           </div>
-          <div className="flex justify-end space-x-2 mt-4">
+
+          <DialogFooter className="p-6 border-t">
             <Button
               variant="secondary"
               onClick={() => setShowMapping(false)}
@@ -250,12 +411,12 @@ export default function CSVUploadStep({
               Cancel
             </Button>
             <Button
-              onClick={handleMappingComplete}
-              disabled={!isValidMapping(schemaMapping)}
+              onClick={handleConfirm}
+              disabled={!isValidMapping(schemaMapping) || validationErrors.length > 0}
             >
-              Apply Mapping
+              Confirm
             </Button>
-          </div>
+          </DialogFooter>
         </DialogContent>
       </Dialog>
 
