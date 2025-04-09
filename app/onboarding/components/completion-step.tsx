@@ -77,73 +77,73 @@ export default function CompletionStep({ formData }: CompletionStepProps) {
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-center mb-6">
-        <div className="bg-red-100 rounded-full p-3">
-          <Check className="h-8 w-8 text-red-600" />
+        <div className="bg-green-100 rounded-full p-3">
+          <Check className="h-8 w-8 text-green-600" />
         </div>
       </div>
 
-      <h3 className="text-lg font-medium text-center mb-6 text-red-700">Thank you for completing the onboarding!</h3>
+      <h3 className="text-lg font-medium text-center mb-6 text-green-700">Thank you for completing the onboarding!</h3>
 
       <div className="space-y-4">
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          <div className="bg-red-50 p-4 rounded-lg">
-            <h4 className="font-medium text-red-700 mb-2">Fleet Information</h4>
-            <p className="text-red-600">Fleet Size: {formData.fleetSize} vehicles</p>
+          <div className="bg-green-50 p-4 rounded-lg">
+            <h4 className="font-medium text-green-700 mb-2">Fleet Information</h4>
+            <p className="text-green-600">Fleet Size: {formData.fleetSize} vehicles</p>
           </div>
 
-          <div className="bg-red-50 p-4 rounded-lg">
-            <h4 className="font-medium text-red-700 mb-2">Vehicle Types</h4>
-            <ul className="list-disc list-inside text-red-600">
+          <div className="bg-green-50 p-4 rounded-lg">
+            <h4 className="font-medium text-green-700 mb-2">Vehicle Types</h4>
+            <ul className="list-disc list-inside text-green-600">
               {formData.vehicleTypes.length > 0 ? (
                 formData.vehicleTypes.map((type, index) => (
                   <li key={index}>{getDisplayName(type, vehicleTypeOptions)}</li>
                 ))
               ) : (
-                <li className="text-red-400">No vehicle types selected</li>
+                <li className="text-green-400">No vehicle types selected</li>
               )}
             </ul>
           </div>
 
-          <div className="bg-red-50 p-4 rounded-lg">
-            <h4 className="font-medium text-red-700 mb-2">Vehicle Models</h4>
-            <ul className="list-disc list-inside text-red-600">
+          <div className="bg-green-50 p-4 rounded-lg">
+            <h4 className="font-medium text-green-700 mb-2">Vehicle Models</h4>
+            <ul className="list-disc list-inside text-green-600">
               {formData.vehicleModels.length > 0 ? (
                 formData.vehicleModels.map((model, index) => (
                   <li key={index}>{getDisplayName(model, vehicleModelOptions)}</li>
                 ))
               ) : (
-                <li className="text-red-400">No vehicle models selected</li>
+                <li className="text-green-400">No vehicle models selected</li>
               )}
             </ul>
           </div>
 
-          <div className="bg-red-50 p-4 rounded-lg">
-            <h4 className="font-medium text-red-700 mb-2">Preferred Manufacturers</h4>
-            <ul className="list-disc list-inside text-red-600">
+          <div className="bg-green-50 p-4 rounded-lg">
+            <h4 className="font-medium text-green-700 mb-2">Preferred Manufacturers</h4>
+            <ul className="list-disc list-inside text-green-600">
               {formData.preferredManufacturers.length > 0 ? (
                 formData.preferredManufacturers.map((manufacturer, index) => (
                   <li key={index}>{getDisplayName(manufacturer, manufacturerOptions)}</li>
                 ))
               ) : (
-                <li className="text-red-400">No manufacturers selected</li>
+                <li className="text-green-400">No manufacturers selected</li>
               )}
             </ul>
           </div>
 
-          <div className="bg-red-50 p-4 rounded-lg">
-            <h4 className="font-medium text-red-700 mb-2">Energy Cost</h4>
-            <p className="text-red-600">{formData.energyCost ? `$${formData.energyCost} per kWh` : "Not provided"}</p>
+          <div className="bg-green-50 p-4 rounded-lg">
+            <h4 className="font-medium text-green-700 mb-2">Energy Cost</h4>
+            <p className="text-green-600">{formData.energyCost ? `$${formData.energyCost} per kWh` : "Not provided"}</p>
           </div>
 
-          <div className="bg-red-50 p-4 rounded-lg">
-            <h4 className="font-medium text-red-700 mb-2">Department</h4>
-            <p className="text-red-600">{formData.department || "Not provided"}</p>
+          <div className="bg-green-50 p-4 rounded-lg">
+            <h4 className="font-medium text-green-700 mb-2">Department</h4>
+            <p className="text-green-600">{formData.department || "Not provided"}</p>
           </div>
         </div>
 
         {formData.csvData && formData.csvData.length > 0 && (
           <div className="mt-8">
-            <h4 className="font-medium text-red-700 mb-4">Uploaded Vehicle Data</h4>
+            <h4 className="font-medium text-green-700 mb-4">Uploaded Vehicle Data</h4>
             <div className="rounded-md border">
               <ScrollArea className="h-[400px]">
                 <Table>
@@ -187,7 +187,7 @@ export default function CompletionStep({ formData }: CompletionStepProps) {
         )}
       </div>
 
-      <p className="text-center text-red-600 mt-6">Our team will review your information and contact you shortly.</p>
+      <p className="text-center text-green-600 mt-6">Our team will review your information and contact you shortly.</p>
     </div>
   )
 }
