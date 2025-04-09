@@ -1,0 +1,6 @@
+vehicle_id,speed_kmh,battery_level,location,timestamp
+VH001,65,80,"New York, NY",2025-04-09T08:30:00
+VH002,72,60,"Los Angeles, CA",2025-04-09T08:45:00
+VH003,50,90,"Chicago, IL",2025-04-09T09:00:00
+VH004,80,50,"Houston, TX",2025-04-09T09:15:00
+VH005,55,75,"Phoenix, AZ",2025-04-09T09:30:00
