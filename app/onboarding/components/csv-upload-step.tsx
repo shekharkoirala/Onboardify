@@ -83,47 +83,7 @@ export default function CSVUploadStep({
   const [showMapping, setShowMapping] = useState(false)
   const [showPreview, setShowPreview] = useState(false)
 
-  const onDrop = useCallback((acceptedFiles: File[]) => {
-    const file = acceptedFiles[0]
-    Papa.parse<CSVRow>(file, {
-      header: true,
-      complete: (results) => {
-        if (results.data.length === 0 || !results.data[0]) {
-          console.log('No data found in CSV')
-          setShowMapping(true)
-          return
-        }
-
-        const headers = Object.keys(results.data[0] as CSVRow)
-        console.log('Detected CSV headers:', headers)
-        setCsvHeaders(headers)
-        setCsvData(results.data)
-
-        // Try automatic mapping
-        const mapping = autoMapColumns(headers)
-        console.log('CSV Headers:', headers)
-        console.log('Initial schema mapping:', mapping)
-        console.log('Automatic mapping result:', mapping)
-        
-        setSchemaMapping(mapping)
-        setShowMapping(true)
-
-        // If mapping is valid, process data for preview
-        if (isValidMapping(mapping)) {
-          const processed = processDataInternal(results.data, mapping)
-          setProcessedData(processed)
-        }
-      },
-      error: (error) => {
-        console.error('Error parsing CSV:', error)
-        setShowMapping(true)
-      }
-    })
-  }, [])
-
-  const { getRootProps, getInputProps, isDragActive } = useDropzone({ onDrop })
-
-  const validateData = (data: ProcessedDataRow[]): string[] => {
+  const validateData = useCallback((data: ProcessedDataRow[]): string[] => {
     const errors: string[] = []
     
     data.forEach((row, index) => {
@@ -171,9 +131,9 @@ export default function CSVUploadStep({
     })
 
     return errors
-  }
+  }, [])
 
-  const autoMapColumns = (headers: string[]) => {
+  const autoMapColumns = useCallback((headers: string[]) => {
     const mapping: Partial<SchemaMapping> = {}
     headers.forEach(header => {
       const lowerHeader = header.toLowerCase()
@@ -216,36 +176,17 @@ export default function CSVUploadStep({
       }
     })
     return mapping as SchemaMapping
-  }
+  }, [])
 
-  const isValidMapping = (mapping: SchemaMapping) => {
+  const isValidMapping = useCallback((mapping: SchemaMapping) => {
     const requiredFields = ['vehicleId', 'vehicleName', 'lat', 'lon', 'dateTime', 'routeUrl']
     return requiredFields.every(field => {
       const value = mapping[field as keyof SchemaMapping]
       return value !== undefined && value !== ''
     })
-  }
+  }, [])
 
-  const detectDateFormat = (dateString: string) => {
-    const formats = [
-      'yyyy-MM-dd HH:mm:ss',
-      'MM/dd/yyyy HH:mm:ss',
-      'dd/MM/yyyy HH:mm:ss',
-      'yyyy-MM-dd',
-      'MM/dd/yyyy',
-      'dd/MM/yyyy'
-    ]
-
-    for (const format of formats) {
-      const parsed = parse(dateString, format, new Date())
-      if (isValid(parsed)) {
-        return format
-      }
-    }
-    return null
-  }
-
-  const processDataInternal = (data: CSVRow[], mapping: SchemaMapping): ProcessedDataRow[] => {
+  const processDataInternal = useCallback((data: CSVRow[], mapping: SchemaMapping): ProcessedDataRow[] => {
     const processed = data.map(row => {
       const batteryLevel = row[mapping.batteryLevel] ? parseFloat(row[mapping.batteryLevel]) : null
 
@@ -267,6 +208,65 @@ export default function CSVUploadStep({
     const errors = validateData(processed)
     setValidationErrors(errors)
     return processed
+  }, [validateData])
+
+  const onDrop = useCallback((acceptedFiles: File[]) => {
+    const file = acceptedFiles[0]
+    Papa.parse<CSVRow>(file, {
+      header: true,
+      complete: (results) => {
+        if (results.data.length === 0 || !results.data[0]) {
+          console.log('No data found in CSV')
+          setShowMapping(true)
+          return
+        }
+
+        const headers = Object.keys(results.data[0] as CSVRow)
+        console.log('Detected CSV headers:', headers)
+        setCsvHeaders(headers)
+        setCsvData(results.data)
+
+        // Try automatic mapping
+        const mapping = autoMapColumns(headers)
+        console.log('CSV Headers:', headers)
+        console.log('Initial schema mapping:', mapping)
+        console.log('Automatic mapping result:', mapping)
+        
+        setSchemaMapping(mapping)
+        setShowMapping(true)
+
+        // If mapping is valid, process data for preview
+        if (isValidMapping(mapping)) {
+          const processed = processDataInternal(results.data, mapping)
+          setProcessedData(processed)
+        }
+      },
+      error: (error) => {
+        console.error('Error parsing CSV:', error)
+        setShowMapping(true)
+      }
+    })
+  }, [autoMapColumns, isValidMapping, processDataInternal, setCsvData, setCsvHeaders, setProcessedData, setSchemaMapping, setShowMapping])
+
+  const { getRootProps, getInputProps, isDragActive } = useDropzone({ onDrop })
+
+  const detectDateFormat = (dateString: string) => {
+    const formats = [
+      'yyyy-MM-dd HH:mm:ss',
+      'MM/dd/yyyy HH:mm:ss',
+      'dd/MM/yyyy HH:mm:ss',
+      'yyyy-MM-dd',
+      'MM/dd/yyyy',
+      'dd/MM/yyyy'
+    ]
+
+    for (const format of formats) {
+      const parsed = parse(dateString, format, new Date())
+      if (isValid(parsed)) {
+        return format
+      }
+    }
+    return null
   }
 
   const handleMappingChange = (field: keyof SchemaMapping, value: string) => {

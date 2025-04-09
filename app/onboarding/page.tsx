@@ -12,6 +12,29 @@ import CompletionStep from "./components/completion-step"
 import CSVUploadStep from "./components/csv-upload-step"
 import { useTheme } from '@/hooks/use-theme'
 
+interface ProcessedDataRow {
+  vehicleId: string
+  vehicleName: string
+  lat: number
+  lon: number
+  dateTime: string
+  routeUrl: string
+  vehicleCharging: boolean
+  speedKmh: number
+  batteryLevel: number | null
+}
+
+interface SchemaMapping {
+  vehicleId: string
+  vehicleName: string
+  lat: string
+  lon: string
+  dateTime: string
+  routeUrl: string
+  vehicleCharging: string
+  speedKmh: string
+  batteryLevel: string
+}
 
 export default function OnboardingPage() {
   const [currentStep, setCurrentStep] = useState(0)
@@ -24,8 +47,8 @@ export default function OnboardingPage() {
     preferredManufacturers: [] as string[],
     energyCost: "",
     department: "",
-    csvData: null,
-    schemaMapping: null,
+    csvData: undefined as ProcessedDataRow[] | undefined,
+    schemaMapping: undefined as SchemaMapping | undefined,
   })
   const { theme, toggleTheme } = useTheme()
 
