@@ -2,15 +2,15 @@
 
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
-import { truncate } from "fs/promises"
 import type { FormEvent } from "react"
 import { useState, useEffect } from "react"
 
 interface FleetInfoStepProps {
   formData: {
+    companyName: string
     fleetSize: string
   }
-  updateFormData: (data: Partial<{ fleetSize: string }>) => void
+  updateFormData: (data: Partial<{ companyName: string; fleetSize: string }>) => void
   onValidationChange?: (isValid: boolean) => void
   showError?: boolean
 }
@@ -20,7 +20,7 @@ export default function FleetInfoStep({ formData, updateFormData, onValidationCh
   const [isSubmitted, setIsSubmitted] = useState(false)
 
   useEffect(() => {
-    const isValid: boolean = Boolean(formData.fleetSize && Number(formData.fleetSize) > 0)
+    const isValid: boolean = Boolean(formData.companyName.length > 0 && Number(formData.fleetSize) > 0)
     onValidationChange?.(isValid)
   }, [formData, onValidationChange])
 
@@ -37,6 +37,22 @@ export default function FleetInfoStep({ formData, updateFormData, onValidationCh
 
   return (
     <div className="space-y-4">
+      <div className="space-y-2">
+        <Label htmlFor="companyName">Company Name</Label>
+        <Input
+          id="companyName"
+          name="companyName"
+          type="text"
+          placeholder={isFocused ? "Enter the name of your company" : ""}
+          value={formData.companyName}
+          onChange={handleChange}
+          className={showError && !formData.companyName ? "border-red-500" : ""}
+        />
+        {showError && !formData.companyName && (
+          <p className="text-sm text-red-500">Please enter the name of your company.</p>
+        )}
+      </div>
+
       <div className="space-y-2">
         <Label htmlFor="fleetSize">Fleet Size</Label>
         <Input

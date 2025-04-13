@@ -15,6 +15,7 @@
 # python 
 /backend/.venv
 /backend/*.duckdb
+/backend/*.duckdb.wal
 
 # production
 /build

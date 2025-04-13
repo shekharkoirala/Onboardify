@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { ChevronLeft, ChevronRight, Moon, Sun, Truck, ArrowRight, CheckCircle2, Loader2 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
@@ -15,6 +15,7 @@ import { cn } from "@/lib/utils"
 import { SuccessPage } from "./components/success-page"
 import { useToast } from "@/hooks/use-toast"
 import { Toaster } from "@/components/ui/toaster"
+import { useAuth } from "@/components/auth-provider"
 
 interface ProcessedDataRow {
   vehicleId: string
@@ -47,8 +48,10 @@ export default function OnboardingPage() {
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [isSuccess, setIsSuccess] = useState(false)
   const { toast } = useToast()
+  const { user } = useAuth()
   const [formData, setFormData] = useState({
     fleetSize: "",
+    companyName: "",
     vehicleTypes: [] as string[],
     vehicleModels: [] as string[],
     preferredManufacturers: [] as string[],
@@ -101,7 +104,7 @@ export default function OnboardingPage() {
 
       // Format the data according to the backend's expected structure
       const payload = {
-        data: formData.csvData.map(row => ({
+        csv_data: formData.csvData.map(row => ({
           vehicle_id: row.vehicleId,
           vehicle_name: row.vehicleName,
           lat: row.lat,
@@ -122,13 +125,31 @@ export default function OnboardingPage() {
           vehicle_charging: formData.schemaMapping.vehicleCharging,
           speed_kmh: formData.schemaMapping.speedKmh,
           battery_level: formData.schemaMapping.batteryLevel,
-        }
+        },
+        onboarding_data: {
+          fleet_size: formData.fleetSize,
+          company_name: formData.companyName,
+          vehicle_types: formData.vehicleTypes,
+          vehicle_models: formData.vehicleModels,
+          preferred_manufacturers: formData.preferredManufacturers,
+          energy_cost: formData.energyCost,
+          department: formData.department,
+        },
+        user_info: {
+          id: user?.id || '',
+          email: user?.email || '',
+          name: user?.user_metadata?.full_name || '',
+        },
       };
 
       console.log('Submitting data:', JSON.stringify(payload, null, 2));
       
-      // Call the backend API
-      const response = await fetch('/api/upload', {
+      // Get the FastAPI URL from environment variables
+      const fastApiUrl = process.env.NEXT_PUBLIC_FASTAPI_URL || 'http://localhost:8000';
+      console.log('FastAPI URL:', fastApiUrl);
+      
+      // Call the FastAPI backend directly
+      const response = await fetch(`${fastApiUrl}/api/upload`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -147,7 +168,7 @@ export default function OnboardingPage() {
         setIsSuccess(true);
         toast({
           title: "Success",
-          description: "Your data has been successfully uploaded.",
+          description: "Your data has been successfully uploaded to FastAPI backend.",
         });
       } else {
         throw new Error(result.message || 'Failed to process data');
