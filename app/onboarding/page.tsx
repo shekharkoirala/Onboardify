@@ -91,7 +91,7 @@ export default function OnboardingPage() {
   const handleSubmit = async () => {
     try {
       setIsSubmitting(true)
-      
+
       // Validate that we have data to send
       if (!formData.csvData || !formData.schemaMapping) {
         toast({
@@ -143,11 +143,11 @@ export default function OnboardingPage() {
       };
 
       console.log('Submitting data:', JSON.stringify(payload, null, 2));
-      
+
       // Get the FastAPI URL from environment variables
       const fastApiUrl = process.env.NEXT_PUBLIC_FASTAPI_URL || 'http://localhost:8000';
       console.log('FastAPI URL:', fastApiUrl);
-      
+
       // Call the FastAPI backend directly
       const response = await fetch(`${fastApiUrl}/api/upload`, {
         method: 'POST',
@@ -163,7 +163,7 @@ export default function OnboardingPage() {
       }
 
       const result = await response.json();
-      
+
       if (result.success) {
         setIsSuccess(true);
         toast({
@@ -192,29 +192,29 @@ export default function OnboardingPage() {
   const renderStep = () => {
     switch (currentStep) {
       case 0:
-        return <FleetInfoStep 
-          formData={formData} 
-          updateFormData={updateFormData} 
+        return <FleetInfoStep
+          formData={formData}
+          updateFormData={updateFormData}
           onValidationChange={setIsStepValid}
           showError={hasAttemptedNext}
         />
       case 1:
-        return <VehicleDetailsStep 
-          formData={formData} 
+        return <VehicleDetailsStep
+          formData={formData}
           updateFormData={updateFormData}
           onValidationChange={setIsStepValid}
           showError={hasAttemptedNext}
         />
       case 2:
-        return <PreferencesStep 
-          formData={formData} 
+        return <PreferencesStep
+          formData={formData}
           updateFormData={updateFormData}
           onValidationChange={setIsStepValid}
           showError={hasAttemptedNext}
         />
       case 3:
-        return <CSVUploadStep 
-          formData={formData} 
+        return <CSVUploadStep
+          formData={formData}
           updateFormData={updateFormData}
           onValidationChange={setIsStepValid}
           showError={hasAttemptedNext}
@@ -241,15 +241,15 @@ export default function OnboardingPage() {
     <>
       <Toaster />
       <div className="min-h-screen bg-background flex flex-col items-center justify-center p-4 relative">
-        <Button 
-          variant="ghost" 
-          onClick={toggleTheme} 
+        <Button
+          variant="ghost"
+          onClick={toggleTheme}
           className="absolute right-4 top-4 size-10 rounded-full"
           size="icon"
         >
           {theme === 'dark' ? <Sun className="h-5 w-5" /> : <Moon className="h-5 w-5" />}
         </Button>
-        
+
         <div className="w-full max-w-4xl">
           <div className="flex items-center mb-10">
             <div className="bg-primary/10 p-3 rounded-full mr-3">
@@ -260,6 +260,14 @@ export default function OnboardingPage() {
 
           <div className="mb-10">
             <div className="flex justify-between mb-6 relative">
+              {/* Connecting line in background */}
+              <div className="absolute top-5 left-0 w-full h-[2px] bg-muted-foreground/20 z-0">
+                <div
+                  className="h-full bg-primary transition-all duration-300"
+                  style={{ width: `${(currentStep / (steps.length - 1)) * 100}%` }}
+                />
+              </div>
+
               {steps.map((step, index) => (
                 <div
                   key={index}
@@ -267,75 +275,75 @@ export default function OnboardingPage() {
                     index <= currentStep ? "opacity-100" : "opacity-50"
                   }`}
                 >
-                  <div 
+                  <div
                     className={cn(
-                      "flex items-center justify-center size-10 rounded-full border-2 mb-2 transition-all duration-300",
-                      index < currentStep 
-                        ? "bg-primary border-primary text-primary-foreground" 
-                        : index === currentStep 
-                          ? "border-primary bg-primary/10 text-primary" 
-                          : "border-muted-foreground/30 text-muted-foreground"
+                      "flex items-center justify-center size-10 rounded-full border-2 mb-2 transition-all duration-300 bg-background",
+                      index < currentStep
+                        ? "bg-green-300 border-primary text-foreground"
+                        : index === currentStep
+                        ? "border-primary bg-primary text-primary-foreground"
+                        : "border-muted-foreground/30 text-muted-foreground"
                     )}
                   >
                     {index < currentStep ? (
                       <CheckCircle2 className="h-5 w-5" />
                     ) : (
-                      <span className="text-sm font-medium">{index + 1}</span>
+                      <span className="text-sm font-medium text-foreground dark:text-primary-foreground">
+                        {index + 1}
+                      </span>
                     )}
                   </div>
-                  <span className={cn(
-                    "text-sm font-medium hidden md:block",
-                    index <= currentStep ? "text-foreground" : "text-muted-foreground"
-                  )}>
+                  <span
+                    className={cn(
+                      "text-sm font-medium hidden md:block",
+                      index <= currentStep ? "text-foreground" : "text-muted-foreground"
+                    )}
+                  >
                     {step.title}
                   </span>
                 </div>
               ))}
-              
-              {/* Connecting line */}
-              <div className="absolute top-5 left-0 w-full h-[2px] bg-muted-foreground/20 -z-0">
-                <div 
-                  className="h-full bg-primary transition-all duration-300" 
-                  style={{ width: `${(currentStep / (steps.length - 1)) * 100}%` }}
-                />
-              </div>
             </div>
-            
+
             <div className="text-sm text-muted-foreground text-center">
-              Step {currentStep + 1} of {steps.length}: <span className="font-medium text-foreground">{steps[currentStep].title}</span>
+              Step {currentStep + 1} of {steps.length}:{" "}
+              <span className="font-medium text-foreground">
+                {steps[currentStep].title}
+              </span>
             </div>
           </div>
+
 
           <Card className="w-full border shadow-lg">
             <CardHeader className="pb-3 border-b">
               <CardTitle className="text-xl">{steps[currentStep].title}</CardTitle>
               <CardDescription>{steps[currentStep].description}</CardDescription>
             </CardHeader>
-            
+
             <CardContent className="pt-6">
               {renderStep()}
             </CardContent>
-            
+
             <CardFooter className="flex justify-between pt-6 border-t">
-              <Button 
-                variant="outline" 
-                onClick={handleBack} 
+              <Button
+                variant="outline"
+                onClick={handleBack}
                 disabled={currentStep === 0 || isSubmitting}
                 className="gap-2"
               >
                 <ChevronLeft className="h-4 w-4" /> Back
               </Button>
-              
+
               {currentStep < steps.length - 1 ? (
-                <Button 
-                  onClick={handleNext} 
+                <Button
+                  onClick={handleNext}
                   className="group gap-2"
                   disabled={(!isStepValid && hasAttemptedNext) || isSubmitting}
                 >
                   Next <ArrowRight className="h-4 w-4 transition-transform group-hover:translate-x-0.5" />
                 </Button>
               ) : currentStep === steps.length - 1 ? (
-                <Button 
+                <Button
                   onClick={handleSubmit}
                   disabled={isSubmitting}
                   className="gap-2"
@@ -352,7 +360,7 @@ export default function OnboardingPage() {
               ) : null}
             </CardFooter>
           </Card>
-          
+
           {currentStep < steps.length - 1 && (
             <div className="mt-4 text-center text-sm text-muted-foreground">
               {currentStep === 0 ? (
