@@ -5,86 +5,45 @@ from typing import Optional, List, Any
 import uvicorn
 import polars as pl
 from datetime import datetime, timezone
-import duckdb
 import uuid
 import hashlib
 import traceback
+import boto3
+import json
+import os
+from dotenv import load_dotenv
 from contextlib import asynccontextmanager
+
+# Load environment variables
+load_dotenv()
+
+# AWS Configuration
+AWS_ACCESS_KEY_ID = os.getenv('AWS_ACCESS_KEY_ID')
+AWS_SECRET_ACCESS_KEY = os.getenv('AWS_SECRET_ACCESS_KEY')
+AWS_REGION = os.getenv('AWS_REGION')
+S3_BUCKET_NAME = os.getenv('S3_BUCKET_NAME')
+
+# Initialize S3 client
+s3_client = boto3.client(
+    's3',
+    aws_access_key_id=AWS_ACCESS_KEY_ID,
+    aws_secret_access_key=AWS_SECRET_ACCESS_KEY,
+    region_name=AWS_REGION
+)
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    #Runs once when the app starts
+    # Check if we can access the S3 bucket
     try:
-        con.execute("""
-            CREATE TABLE IF NOT EXISTS user_info (
-                user_id TEXT,
-                email TEXT,
-                name TEXT,
-                company_name TEXT,
-                company_id TEXT,
-                created_at TEXT,
-                PRIMARY KEY (user_id)
-            )
-        """)
-
-        con.execute("""
-            CREATE TABLE IF NOT EXISTS fleet_info (
-                fleet_size TEXT,
-                company_name TEXT,
-                vehicle_types TEXT[],
-                vehicle_models TEXT[],
-                preferred_manufacturers TEXT[],
-                energy_cost TEXT,
-                department TEXT,
-                created_at TEXT,
-                company_id TEXT PRIMARY KEY
-            )
-        """)
-
-        con.execute("""
-            CREATE TABLE IF NOT EXISTS vehicle_data (
-                document_uuid TEXT,
-                company_id TEXT,
-                vehicle_id TEXT,
-                vehicle_name TEXT,
-                lat FLOAT,
-                lon FLOAT,
-                date_time TEXT,
-                route_url TEXT,
-                vehicle_charging BOOLEAN,
-                speed_kmh FLOAT,
-                battery_level FLOAT,
-                PRIMARY KEY (document_uuid, vehicle_id)
-            )
-        """)
-        print("DuckDB tables initialized.")
-
-        # get fleet table schema
-        # fleet_schema = con.execute(f"PRAGMA table_info(fleet_info)").fetchdf()
-        # print(f"------ fleet_schema ------")
-        # print(fleet_schema)
-
-        # # get user_info table schema
-        # user_info_schema = con.execute(f"PRAGMA table_info(user_info)").fetchdf()
-        # print(f"------ user_info_schema ------")
-        # print(user_info_schema)
-
-        # # get vehicle_data table schema
-        # vehicle_data_schema = con.execute(f"PRAGMA table_info(vehicle_data)").fetchdf()
-        # print(f"------ vehicle_data_schema ------")
-        # print(vehicle_data_schema)
+        s3_client.head_bucket(Bucket=S3_BUCKET_NAME)
+        print(f"Successfully connected to S3 bucket: {S3_BUCKET_NAME}")
     except Exception as e:
-        traceback.print_exc()
-        print("Error initializing tables:", e)
+        print(f"Error connecting to S3 bucket: {e}")
+        raise e
 
-    yield  # App is now running
+    yield
 
-    # Optionally: cleanup logic here when app shuts down
-
-    
 app = FastAPI(title="DocParser API", lifespan=lifespan)
-con = duckdb.connect("onboardify.duckdb")
-
 router = APIRouter(prefix="/api")
 
 class UploadPayload(BaseModel):
@@ -155,83 +114,62 @@ async def upload_document(file: UploadFile = File(...)):
 @router.post("/upload")
 async def upload_data(payload: UploadPayload):
     try:
-        # print(payload)
+        # Convert CSV data to DataFrame
         df = pl.DataFrame(payload.csv_data)
         df = df.rename(payload.mapping)
         
-        # Fix column types for vehicle_data
-        # Convert speed_kmh to float if it's not already
+        # Process the data (type conversions)
         if 'speed_kmh' in df.columns:
             df = df.with_columns(pl.col('speed_kmh').cast(pl.Float64))
             
-        # Convert battery_level (vehicle_battery_level in original data) to float if it exists
         if 'vehicle_battery_level' in df.columns:
             df = df.with_columns(pl.col('vehicle_battery_level').cast(pl.Float64).alias('battery_level'))
             df = df.drop('vehicle_battery_level')
         elif 'battery_level' in df.columns:
             df = df.with_columns(pl.col('battery_level').cast(pl.Float64))
             
-        # Make sure vehicle_charging is boolean
         if 'vehicle_charging' in df.columns:
             df = df.with_columns(pl.col('vehicle_charging').cast(pl.Boolean))
         
-        # Convert lat and lon to float
         if 'lat' in df.columns:
             df = df.with_columns(pl.col('lat').cast(pl.Float64))
         if 'lon' in df.columns:
             df = df.with_columns(pl.col('lon').cast(pl.Float64))
-            
-        fleet_df = pl.DataFrame([payload.onboarding_data])
 
-        user_df = pl.DataFrame(payload.user_info)
+        # Generate IDs and timestamps
         current_time = datetime.now(timezone.utc).isoformat()
-
-        # add company name in the user row
         company_name = payload.onboarding_data["company_name"]
         company_id = hashlib.md5(company_name.encode("utf-8")).hexdigest()
 
-        user_df = user_df.with_columns([
-            pl.lit(payload.onboarding_data["company_name"]).alias("company_name"),
-            pl.lit(company_id).alias("company_id"),
-            pl.lit(current_time).alias("created_at")
-        ])
+        # Prepare user data
+        user_data = {
+            **payload.user_info,
+            "company_name": company_name,
+            "company_id": company_id,
+            "created_at": current_time
+        }
 
-        table_name = "user_info"
-        con.execute(f"INSERT OR IGNORE INTO {table_name} SELECT * FROM user_df")
+        # Prepare fleet data
+        fleet_data = {
+            **payload.onboarding_data,
+            "created_at": current_time,
+            "company_id": company_id
+        }
 
-        # add fleet data in fleet table
-        fleet_df = fleet_df.with_columns([
-            pl.lit(current_time).alias("created_at"),
-            pl.lit(company_id).alias("company_id")
-        ])
-        
-        table_name = "fleet_info"
-        print(fleet_df)
-
-        # get fleet table schema
-        fleet_schema = con.execute(f"PRAGMA table_info({table_name})").fetchdf()
-        print(fleet_schema)
-
-        con.execute(f"INSERT OR IGNORE INTO {table_name} SELECT * FROM fleet_df")
-
-        # create document UUID before adding to the table
+        # Add document UUID and company ID to vehicle data
         df = df.with_columns([
             pl.lit(str(uuid.uuid4())).alias("document_uuid"),
             pl.lit(company_id).alias("company_id")
         ])
-        
-        # Print dataframe schema before insert to debug
-        print("DataFrame schema before insert:")
-        print(df.schema)
-        
-        # Make sure we have all required columns
+
+        # Ensure all required columns exist
         required_columns = [
             "document_uuid", "company_id", "vehicle_id", "vehicle_name", 
             "lat", "lon", "date_time", "route_url", "vehicle_charging", 
             "speed_kmh", "battery_level"
         ]
-        
-        # Check missing columns and add them with default values
+
+        # Add missing columns with default values
         missing_columns = [col for col in required_columns if col not in df.columns]
         for col in missing_columns:
             if col in ["lat", "lon", "speed_kmh", "battery_level"]:
@@ -240,26 +178,62 @@ async def upload_data(payload: UploadPayload):
                 df = df.with_columns(pl.lit(False).alias(col))
             else:
                 df = df.with_columns(pl.lit(None).cast(pl.Utf8).alias(col))
-        
-        # Select only the required columns in the correct order
+
+        # Select only required columns
         df = df.select(required_columns)
-        
-        table_name = "vehicle_data"
-        
-        # Use a transaction to safely insert the data
-        con.execute("BEGIN TRANSACTION")
+
+        # Store data in S3
         try:
-            con.execute(f"INSERT INTO {table_name} SELECT * FROM df")
-            con.execute("COMMIT")
-        except Exception as e:
-            con.execute("ROLLBACK")
-            raise e
+            # Store user data
+            user_key = f"users/{company_id}/user_info.json"
+            s3_client.put_object(
+                Bucket=S3_BUCKET_NAME,
+                Key=user_key,
+                Body=json.dumps(user_data)
+            )
+
+            # Store fleet data
+            fleet_key = f"fleets/{company_id}/fleet_info.json"
+            s3_client.put_object(
+                Bucket=S3_BUCKET_NAME,
+                Key=fleet_key,
+                Body=json.dumps(fleet_data)
+            )
+
+            # Store vehicle data
+            vehicle_data = df.to_pandas()
+            vehicle_key = f"vehicles/{company_id}/{current_time}_vehicle_data.parquet"
             
-        return {"success": True, "message": "Data successfully processed and stored in DuckDB."}
+            # Convert DataFrame to parquet and upload to S3
+            parquet_buffer = vehicle_data.to_parquet()
+            s3_client.put_object(
+                Bucket=S3_BUCKET_NAME,
+                Key=vehicle_key,
+                Body=parquet_buffer
+            )
+
+            return {
+                "success": True,
+                "message": "Data successfully stored in S3",
+                "locations": {
+                    "user_data": user_key,
+                    "fleet_data": fleet_key,
+                    "vehicle_data": vehicle_key
+                }
+            }
+
+        except Exception as e:
+            raise HTTPException(
+                status_code=500,
+                detail=f"Error storing data in S3: {str(e)}"
+            )
 
     except Exception as e:
         traceback.print_exc()
-        raise HTTPException(status_code=500, detail=f"Error processing data: {str(e)}")
+        raise HTTPException(
+            status_code=500,
+            detail=f"Error processing data: {str(e)}"
+        )
 
 app.include_router(router)
 
